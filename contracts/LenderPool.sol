@@ -8,7 +8,7 @@ import "../interfaces/IBorrower.sol";
 /// @author Xander Deseyn
 contract LenderPool {
     uint constant LOAN_FEE_BASIS_POINTS = 5;
-    uint constant DEPOSIT_GRANULARITY = 10 ** 9;
+    uint constant REWARD_SCALAR = 10 ** 18;
 
     mapping (address => uint) _rewardsGeneratedAtTimeOfDeposit;
     mapping (address => uint) _deposits;
@@ -43,7 +43,7 @@ contract LenderPool {
         require(deposit > 0);
         _deposits[msg.sender] = 0;
         
-        uint reward = (totalRewardsGenerated - _rewardsGeneratedAtTimeOfDeposit[msg.sender]) * deposit;
+        uint reward = (totalRewardsGenerated - _rewardsGeneratedAtTimeOfDeposit[msg.sender]) * deposit / REWARD_SCALAR;
 
         (bool success,) = msg.sender.call{ value: deposit + reward }("");
         require(success);
@@ -56,7 +56,7 @@ contract LenderPool {
     }
 
     function rewardsOf(address addr) external view returns (uint rewards) {
-        return (totalRewardsGenerated - _rewardsGeneratedAtTimeOfDeposit[msg.sender]) * _deposits[addr];
+        return (totalRewardsGenerated - _rewardsGeneratedAtTimeOfDeposit[msg.sender]) * _deposits[addr] / REWARD_SCALAR;
     }
 
     /// @dev The borrower has to repay at least amountLended * (1 + LOAN_FEE_BASIS_POINTS / 10000) before his function returns control to this contract
@@ -66,7 +66,6 @@ contract LenderPool {
         uint initialLiquidity = address(this).balance;
         require(amount <= initialLiquidity);
         console.log("Enough liquidity found.");
-
 
         IBorrower borrower = IBorrower(msg.sender);
         borrower.onFundsReceived{ value: amount }();
@@ -80,6 +79,6 @@ contract LenderPool {
     function distributeRewards(uint amount) internal {
         require(amount > 0, "Cannot distribute 0 rewards");
         require(totalDeposited > 0, "Cannot distribute rewards when no liquidity is deposited");
-        totalRewardsGenerated = totalRewardsGenerated + amount / totalDeposited;
+        totalRewardsGenerated = totalRewardsGenerated + (amount * REWARD_SCALAR) / totalDeposited;
     }
 }

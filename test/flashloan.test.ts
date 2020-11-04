@@ -3,7 +3,7 @@ import { ethers } from "hardhat";
 import "@nomiclabs/hardhat-waffle";
 import { LenderPool } from "../types/LenderPool";
 import { Borrower } from "../types/Borrower";
-import { ethers as E } from "ethers";
+import { BigNumber, ethers as E } from "ethers";
 import { parseEther } from "ethers/lib/utils";
 
 const oneETH = parseEther("1");
@@ -74,7 +74,18 @@ describe("Flashloan", function () {
   });
 
   it("Should be able to provide liquidity and earn reward when flash loans are made", async function () {
+    const balanceBefore = await signer1.getBalance();
     await lenderPool.deposit({ value: oneETH });
     await borrower.executeFlashloan();
+    expect(await lenderPool.depositOf(signer1Address)).to.equal(oneETH);
+    expect(await lenderPool.rewardsOf(signer1Address)).to.equal(
+      BigNumber.from("5000000000000000")
+    );
+    await lenderPool.withdraw();
+    expect(await lenderPool.depositOf(signer1Address)).to.equal(0);
+    expect(await lenderPool.rewardsOf(signer1Address)).to.equal(0);
+    const balanceAfter = await signer1.getBalance();
+
+    expect(balanceAfter).to.be.gt(balanceBefore);
   });
 });
