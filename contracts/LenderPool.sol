@@ -25,9 +25,7 @@ contract LenderPool {
         _owner = msg.sender;
     }
 
-    function repay() public payable {
-        console.log("repay");
-     }
+    function repay() public payable {}
 
     function deposit() external payable {
         require(_deposits[msg.sender] == 0, "Can only provide liquidity once. To change your deposit, withdraw first and then deposit again.");
@@ -62,16 +60,13 @@ contract LenderPool {
     /// @dev The borrower has to repay at least amountLended * (1 + LOAN_FEE_BASIS_POINTS / 10000) before his function returns control to this contract
     /// @param amount The amount to lend in wei
     function flashloan(uint amount) external {
-        console.log("Flashloan started");
         uint initialLiquidity = address(this).balance;
         require(amount <= initialLiquidity);
-        console.log("Enough liquidity found.");
 
         IBorrower borrower = IBorrower(msg.sender);
         borrower.onFundsReceived{ value: amount }();
 
         uint newLiquidity = address(this).balance;
-        console.log("newLiquidity", newLiquidity);
         require(newLiquidity >= (initialLiquidity + initialLiquidity * LOAN_FEE_BASIS_POINTS / 10000), "Borrower did not return enough liquidity");
         distributeRewards(newLiquidity - initialLiquidity);
     }
