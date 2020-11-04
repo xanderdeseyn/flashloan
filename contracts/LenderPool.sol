@@ -2,6 +2,7 @@
 pragma solidity >=0.7.0;
 
 import "hardhat/console.sol";
+import "../interfaces/IBorrower.sol";
 
 /// @title The LenderPool contract which allows borrowers to make flashloans
 /// @author Xander Deseyn
@@ -24,10 +25,12 @@ contract LenderPool {
         _owner = msg.sender;
     }
 
-    /// @dev This could also be moved to a function, but I decided this is the easiest way for users to provide liquidity. In addition, this prevents ETH sent to the contract from being lost.
-    /// @notice Sending ETH to this contract automatically makes you a liquidity provider
-    receive() external payable {
-        require(_deposits[msg.sender] == 0);
+    function repay() public payable {
+        console.log("repay");
+     }
+
+    function deposit() external payable {
+        require(_deposits[msg.sender] == 0, "Can only provide liquidity once. To change your deposit, withdraw first and then deposit again.");
         _deposits[msg.sender] = msg.value;
         totalDeposited += msg.value;
         _rewardsGeneratedAtTimeOfDeposit[msg.sender] = totalRewardsGenerated;
@@ -48,28 +51,35 @@ contract LenderPool {
         emit LiquidityRemoved(deposit + reward, msg.sender);
     }
 
-    /// @param addr The address whose deposit to check
-    /// @return deposit The deposit for addr
-    function depositOf(address addr) public view returns (uint deposit) {
+    function depositOf(address addr) external view returns (uint deposit) {
         return _deposits[addr];
+    }
+
+    function rewardsOf(address addr) external view returns (uint rewards) {
+        return (totalRewardsGenerated - _rewardsGeneratedAtTimeOfDeposit[msg.sender]) * _deposits[addr];
     }
 
     /// @dev The borrower has to repay at least amountLended * (1 + LOAN_FEE_BASIS_POINTS / 10000) before his function returns control to this contract
     /// @param amount The amount to lend in wei
     function flashloan(uint amount) external {
+        console.log("Flashloan started");
         uint initialLiquidity = address(this).balance;
         require(amount <= initialLiquidity);
+        console.log("Enough liquidity found.");
 
-        (bool success,) = msg.sender.call{ value: amount }("");
-        require(success);
+
+        IBorrower borrower = IBorrower(msg.sender);
+        borrower.onFundsReceived{ value: amount }();
 
         uint newLiquidity = address(this).balance;
-        require(newLiquidity >= (initialLiquidity + initialLiquidity * LOAN_FEE_BASIS_POINTS / 10000));
+        console.log("newLiquidity", newLiquidity);
+        require(newLiquidity >= (initialLiquidity + initialLiquidity * LOAN_FEE_BASIS_POINTS / 10000), "Borrower did not return enough liquidity");
         distributeRewards(newLiquidity - initialLiquidity);
     }
 
     function distributeRewards(uint amount) internal {
-        require(amount > 0);
+        require(amount > 0, "Cannot distribute 0 rewards");
+        require(totalDeposited > 0, "Cannot distribute rewards when no liquidity is deposited");
         totalRewardsGenerated = totalRewardsGenerated + amount / totalDeposited;
     }
 }

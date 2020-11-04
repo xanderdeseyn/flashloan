@@ -40,57 +40,41 @@ describe("Flashloan", function () {
       signer1
     );
     lenderPool = (await LenderPoolFactory.deploy()) as LenderPool;
+    await lenderPool.deployed();
 
     const BorrowerFactory = await ethers.getContractFactory(
       "Borrower",
       signer2
     );
-    borrower = (await BorrowerFactory.deploy()) as Borrower;
+    borrower = (await BorrowerFactory.deploy(lenderPool.address)) as Borrower;
 
-    await lenderPool.deployed();
     await borrower.deployed();
+    await signer1.sendTransaction({ to: borrower.address, value: oneETH });
   });
 
   it("Should be able to lend and withdraw liquidity", async function () {
-    await signer1.sendTransaction({
-      to: lenderPool.address,
-      value: oneETH,
-    });
-    await signer2.sendTransaction({
-      to: lenderPool.address,
-      value: twoETH,
-    });
-    await signer3.sendTransaction({
-      to: lenderPool.address,
-      value: threeETH,
-    });
+    const lenderPool2 = lenderPool.connect(signer2);
+    const lenderPool3 = lenderPool.connect(signer3);
+
+    await lenderPool.deposit({ value: oneETH });
+    await lenderPool2.deposit({ value: twoETH });
+    await lenderPool3.deposit({ value: threeETH });
 
     expect(await lenderPool.depositOf(signer1Address)).to.equal(oneETH);
     await lenderPool.withdraw();
     expect(await lenderPool.depositOf(signer1Address)).to.equal(0);
 
     expect(await lenderPool.depositOf(signer2Address)).to.equal(twoETH);
-    const lenderPool2 = lenderPool.connect(signer2);
     await lenderPool2.withdraw();
     expect(await lenderPool.depositOf(signer2Address)).to.equal(0);
 
     expect(await lenderPool.depositOf(signer3Address)).to.equal(threeETH);
-    const lenderPool3 = lenderPool.connect(signer3);
     await lenderPool3.withdraw();
     expect(await lenderPool.depositOf(signer3Address)).to.equal(0);
   });
 
-  // it("Should be able to lend and withdraw liquidity", async function () {
-  //   await signer1.sendTransaction({
-  //     to: lenderPool.address,
-  //     value: oneETH,
-  //   });
-
-  //   await signer1.sendTransaction({
-  //     to: lenderPool.address,
-  //     value: oneETH,
-  //   });
-
-  //   lenderPool.connect(signer3);
-  // });
+  it("Should be able to provide liquidity and earn reward when flash loans are made", async function () {
+    await lenderPool.deposit({ value: oneETH });
+    await borrower.executeFlashloan();
+  });
 });
